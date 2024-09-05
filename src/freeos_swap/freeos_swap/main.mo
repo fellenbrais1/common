@@ -1,5 +1,5 @@
 // main.mo
-// Code to run and manage processes handled by the freeos_swap container working with the icrc1_ledger canister
+// Code to run and manage processes handled by the freeos_swap canister working with the icrc1_ledger canister
 
 // CODE START
 
@@ -8,7 +8,6 @@ import Blob "mo:base/Blob";
 import Nat "mo:base/Nat";
 import Text "mo:base/Text";
 import Error "mo:base/Error";
-import Time "mo:base/Time";
 import Timer "mo:base/Timer";
 import Debug "mo:base/Debug";
 
@@ -58,7 +57,7 @@ actor {
   };
 
   // VARIABLES *************************************************************
-  
+
   let ledger_canister = actor ("mxzaz-hqaaa-aaaar-qaada-cai") : actor {
     icrc1_transfer : (TransferArg) -> async TransferResult;
     icrc1_balance_of : (Account) -> async Nat;
