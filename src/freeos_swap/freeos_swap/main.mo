@@ -1,3 +1,8 @@
+// main.mo
+// Code to run and manage processes handled by the freeos_swap container working with the icrc1_ledger canister
+
+// CODE START
+
 import Principal "mo:base/Principal";
 import Blob "mo:base/Blob";
 import Nat "mo:base/Nat";
@@ -8,6 +13,9 @@ import Timer "mo:base/Timer";
 import Debug "mo:base/Debug";
 
 actor {
+
+  // TYPES *************************************************************
+
   type Subaccount = Blob;
   type Tokens = Nat;
   type Timestamp = Nat64;
@@ -49,17 +57,25 @@ actor {
     #Err : TransferError;
   };
 
+  // VARIABLES *************************************************************
+  
   let ledger_canister = actor ("mxzaz-hqaaa-aaaar-qaada-cai") : actor {
     icrc1_transfer : (TransferArg) -> async TransferResult;
     icrc1_balance_of : (Account) -> async Nat;
   };
 
-  // Timer variable to store the timer ID
-  // var mintTimer : Timer.TimerId = 0;
-
   // Defined the to_principal value here to make it easier to update and be usable by different functions
   let to_principal = Principal.fromText("tog4r-6yoqs-piw5o-askmx-dwu6g-vncjf-y7gml-qnkb2-yhuao-2cq3c-2ae");
 
+  // Variables needed for the auto-minting process
+  var mintTimer : Nat = 0;
+  var isMinting : Bool = false;
+  var mintStop : Bool = true;
+
+  // FUNCTIONS *************************************************************
+  
+  // Allows manual minting of the amount specified to the user's balance
+  // Can be called by the user
   public shared func mint() : async Result<Nat, Text> {
     let memoText = "Test transfer";
     let memoBlob = Text.encodeUtf8(memoText);
@@ -88,6 +104,9 @@ actor {
     };
   };
 
+  // Allows the function to display balance of the user in the icrc1_ledger canister to be run in freeos_swap
+  // Outputs the balance of the user and a message of whether the auto-minting process is running
+  // Can be called by the user
   public shared func getBalance() : async (Nat, Text) {
     let account = {
       owner = to_principal;
@@ -105,22 +124,22 @@ actor {
     return (balance, message);
   };
 
-  var mintTimer : Nat = 0;
-  var isMinting : Bool = false;
-  var mintStop : Bool = true;
-
-  // Heartbeat function to run mint every 30 seconds
+  // Enables auto-minting related functions to start the process
+  // Can be called by the user
   public func startMinting() : async () {
     mintStop:= false;
   };
   
+  // Creates a timer for the auto-minting process to run every 30 seconds
+  // Automatically runs and has an effect if mintStop == false
   system func heartbeat() : async () {
     if (mintTimer == 0 and not mintStop) {
       mintTimer := Timer.setTimer(#seconds 30, heartbeatCallback);
     };
   };
 
-  // Callback function for the timer
+  // Resets the timer and runs mint()
+  // Called by heartbeat() every 30 seconds
   func heartbeatCallback() : async () {
     if (mintStop) {
       return;  
@@ -141,7 +160,8 @@ actor {
     };
   };
 
-  // Function to stop the minting process
+  // Stops the auto-minting process
+  // Can be called by the user
   public func stopMinting() : async () {
     if (mintTimer != 0) {
       Timer.cancelTimer(mintTimer);
@@ -151,3 +171,5 @@ actor {
   };
 
 };
+
+// CODE END
