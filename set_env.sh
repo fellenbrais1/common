@@ -15,5 +15,6 @@ export TOKEN_SYMBOL="LIFT"
 # export MINTER=$(dfx identity get-principal)
 export MINTER=bkyz2-fmaaa-aaaaa-qaaaq-cai
 export FEATURE_FLAGS=false
+dfx identity use Jesper
 
 
