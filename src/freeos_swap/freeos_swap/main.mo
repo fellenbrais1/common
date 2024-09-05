@@ -64,7 +64,11 @@ actor {
   };
 
   // Defined the to_principal value here to make it easier to update and be usable by different functions
-  let to_principal = Principal.fromText("tog4r-6yoqs-piw5o-askmx-dwu6g-vncjf-y7gml-qnkb2-yhuao-2cq3c-2ae");
+  // This can be done using { caller } in the future but I haven't been able to get it to work yet
+  // Jesper
+  // let to_principal = Principal.fromText("tog4r-6yoqs-piw5o-askmx-dwu6g-vncjf-y7gml-qnkb2-yhuao-2cq3c-2ae");
+  // testytester
+  let to_principal = Principal.fromText("stp67-22vw7-sgmm7-aqsla-64hid-auh7e-qjsxr-tr3q2-47jtb-qubd7-6qe");
 
   // Variables needed for the auto-minting process
   var mintTimer : Nat = 0;
@@ -72,7 +76,7 @@ actor {
   var mintStop : Bool = true;
 
   // FUNCTIONS *************************************************************
-  
+
   // Allows manual minting of the amount specified to the user's balance
   // Can be called by the user
   public shared func mint() : async Result<Nat, Text> {
@@ -116,9 +120,9 @@ actor {
 
     let balance = await ledger_canister.icrc1_balance_of(account);
     if (mintStop) {
-      message := "Minting is stopped.";
+      message := "Auto-minting is stopped.";
     } else {
-      message := "Minting is running.";
+      message := "Auto-minting is running.";
     };
     return (balance, message);
   };
