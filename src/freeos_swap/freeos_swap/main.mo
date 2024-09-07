@@ -19,7 +19,7 @@ actor {
   // TYPES *************************************************************
 
   type Subaccount = Blob;
-  type Tokens = Nat;
+  type Tokens = Int;
   type Timestamp = Nat64;
 
   type Account = {
@@ -33,6 +33,7 @@ actor {
   };
 
   type TransferArg = {
+    from : ?Principal;
     from_subaccount : ?Subaccount;
     to : Account;
     amount : Tokens;
@@ -79,9 +80,11 @@ actor {
   // Defined the to_principal value here to make it easier to update and be usable by different functions
   // This can be done using { caller } in the future but I haven't been able to get it to work yet
   // Jesper
-  let to_principal = Principal.fromText("tog4r-6yoqs-piw5o-askmx-dwu6g-vncjf-y7gml-qnkb2-yhuao-2cq3c-2ae");
+  let hardCodedToPrincipal = Principal.fromText("tog4r-6yoqs-piw5o-askmx-dwu6g-vncjf-y7gml-qnkb2-yhuao-2cq3c-2ae");
   // testytester
-  // let to_principal = Principal.fromText("stp67-22vw7-sgmm7-aqsla-64hid-auh7e-qjsxr-tr3q2-47jtb-qubd7-6qe");
+  // let hardCodedPrincipal = Principal.fromText("stp67-22vw7-sgmm7-aqsla-64hid-auh7e-qjsxr-tr3q2-47jtb-qubd7-6qe");
+
+  var to_principal : Principal = hardCodedToPrincipal;
 
   // Variables needed for the auto-minting process
   var mintTimer : Nat = 0;
@@ -95,45 +98,50 @@ actor {
 
   // JESPER - Created new variables
   // Not used yet
-  let message : MessageObject = {
-    accountFrom = null;
-    accountTo = null;
-    amount = null;
-    time = null;
-  };
+  // let message : MessageObject = {
+  //   accountFrom = null;
+  //   accountTo = null;
+  //   amount = null;
+  //   time = null;
+  // };
 
   // JESPER - New variables to be used to set the contents of the transferArgs based on the HTTPS request
   var transferAmount : Tokens = 50000;
   let transferFee : Tokens = 0;
 
-  private let MINTER_ACCOUNT = { owner = to_principal; subaccount = null };
-  
+  // Gets the Principal of this canister for use in burning
+  // private let minterPrincipal : Principal = Principal.fromText("aaaaa-aa");
+  private let minterPrincipal : Principal = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai");
 
+  // Creating the accont type variable to use in the burn function
+  private let MINTER_ACCOUNT = { owner = minterPrincipal; subaccount = null };
+  
   // FUNCTIONS *************************************************************
 
   // JESPER - Test of burning process
-  public shared func burn() : async Result<Nat, Text> {
+  public shared (msg) func burn() : async Result<Nat, Text> {
     let memoText = "Test burn";
     let memoBlob = Text.encodeUtf8(memoText);
     let ranAtTime = await generateTime();
+    let caller = msg.caller;
 
+    // This doesn't work as the IC doesn't use a null address like other blockchains do
     // let burnAddress : Principal = Principal.fromText("aaaaa-aa"); // This is the IC's null address
 
-    // switch (await ledger_canister.icrc1_balance_of({ owner = to_principal; subaccount = null })) {
-    //   case (#Ok(balance)) {
-    //     if (balance < amount + FEE) {
-    //       return #err("Insufficient balance");
-    //     };
-    //   };
-    //   case (#Err(error)) {
-    //     return #err("Failed to check balance: " # debug_show(error));
-    //   };
-    // };
+    let balance = await ledger_canister.icrc1_balance_of({ owner = caller; subaccount = null });
 
+    if (balance > transferAmount + transferFee) {
+      return #ok(balance);
+    } else {
+      return #err("Insufficient balance to burn " # Int.toText(transferAmount) # " tokens.");
+    };
+
+    let negativeTransferAmount = transferAmount - (transferAmount * 2);
     let transferArgs = {
+      from = ?to_principal;
       from_subaccount = null;
       to = MINTER_ACCOUNT;
-      amount = transferAmount;
+      amount = negativeTransferAmount;
       fee = ?transferFee;
       memo = ?memoBlob;
       created_at_time = ?ranAtTime;
@@ -165,6 +173,18 @@ actor {
     transferAmount;
   };
 
+  public shared (message) func whoami() : async Principal {
+    return message.caller;
+  };
+
+  // JESPER - Experimental function to be able to change the toPrincipal to mint to the balance where it needs to be
+  // Later we could potentially use this to iterate over a range of Principals and change the to address each time
+  public shared func setToPrincipal(setPrincipal : Principal) : async Text {
+    to_principal := setPrincipal;
+    let message : Text = ("To Principal set to " # Principal.toText(to_principal));
+    message;
+  };
+
   // Allows manual minting of the amount specified to the user's balance
   // Can be called by the user
   public shared func mint() : async Result<Nat, Text> {
@@ -173,6 +193,7 @@ actor {
     let ranAtTime = await generateTime();
 
     let transferArgs = {
+      from = null;
       from_subaccount = null;
       to = {
         owner = to_principal;
@@ -288,12 +309,12 @@ actor {
       try {
         ignore burn();
       } catch (e) {
-        // Handle any errors that occur during minting
+        // Handle any errors that occur during burning
         Debug.print("Burning error: " # Error.message(e));
       };
       isBurning := false;
     };
-    // Set the next timer only if minting is still active
+    // Set the next timer only if burning is still active
     if (burnTimer != 0) {
       burnTimer := Timer.setTimer(#seconds 30, burnHeartbeatCallback);
     };
