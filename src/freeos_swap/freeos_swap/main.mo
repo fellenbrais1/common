@@ -5,9 +5,12 @@
 
 import Principal "mo:base/Principal";
 import Blob "mo:base/Blob";
+import Int "mo:base/Int";
 import Nat "mo:base/Nat";
+import Nat64 "mo:base/Nat64";
 import Text "mo:base/Text";
 import Error "mo:base/Error";
+import Time "mo:base/Time";
 import Timer "mo:base/Timer";
 import Debug "mo:base/Debug";
 
@@ -56,6 +59,16 @@ actor {
     #Err : TransferError;
   };
 
+  // JESPER - Created custom types to handle contents of HTTP GET request and pass to other functions
+  type Time = Time.Time;
+
+  type MessageObject = {
+    accountFrom : ?Principal;
+    accountTo : ?Principal;
+    amount: ?Int;
+    time: ?Time;
+  };
+
   // VARIABLES *************************************************************
 
   let ledger_canister = actor ("mxzaz-hqaaa-aaaar-qaada-cai") : actor {
@@ -66,22 +79,98 @@ actor {
   // Defined the to_principal value here to make it easier to update and be usable by different functions
   // This can be done using { caller } in the future but I haven't been able to get it to work yet
   // Jesper
-  // let to_principal = Principal.fromText("tog4r-6yoqs-piw5o-askmx-dwu6g-vncjf-y7gml-qnkb2-yhuao-2cq3c-2ae");
+  let to_principal = Principal.fromText("tog4r-6yoqs-piw5o-askmx-dwu6g-vncjf-y7gml-qnkb2-yhuao-2cq3c-2ae");
   // testytester
-  let to_principal = Principal.fromText("stp67-22vw7-sgmm7-aqsla-64hid-auh7e-qjsxr-tr3q2-47jtb-qubd7-6qe");
+  // let to_principal = Principal.fromText("stp67-22vw7-sgmm7-aqsla-64hid-auh7e-qjsxr-tr3q2-47jtb-qubd7-6qe");
 
   // Variables needed for the auto-minting process
   var mintTimer : Nat = 0;
   var isMinting : Bool = false;
   var mintStop : Bool = true;
 
+  // Variables needed for the auto-burning process
+  var burnTimer : Nat = 0;
+  var isBurning : Bool = false;
+  var burnStop : Bool = true;
+
+  // JESPER - Created new variables
+  // Not used yet
+  let message : MessageObject = {
+    accountFrom = null;
+    accountTo = null;
+    amount = null;
+    time = null;
+  };
+
+  // JESPER - New variables to be used to set the contents of the transferArgs based on the HTTPS request
+  var transferAmount : Tokens = 50000;
+  let transferFee : Tokens = 0;
+
+  private let MINTER_ACCOUNT = { owner = to_principal; subaccount = null };
+  
+
   // FUNCTIONS *************************************************************
+
+  // JESPER - Test of burning process
+  public shared func burn() : async Result<Nat, Text> {
+    let memoText = "Test burn";
+    let memoBlob = Text.encodeUtf8(memoText);
+    let ranAtTime = await generateTime();
+
+    // let burnAddress : Principal = Principal.fromText("aaaaa-aa"); // This is the IC's null address
+
+    // switch (await ledger_canister.icrc1_balance_of({ owner = to_principal; subaccount = null })) {
+    //   case (#Ok(balance)) {
+    //     if (balance < amount + FEE) {
+    //       return #err("Insufficient balance");
+    //     };
+    //   };
+    //   case (#Err(error)) {
+    //     return #err("Failed to check balance: " # debug_show(error));
+    //   };
+    // };
+
+    let transferArgs = {
+      from_subaccount = null;
+      to = MINTER_ACCOUNT;
+      amount = transferAmount;
+      fee = ?transferFee;
+      memo = ?memoBlob;
+      created_at_time = ?ranAtTime;
+    };
+
+    let transferResult = await ledger_canister.icrc1_transfer(transferArgs);
+
+    switch (transferResult) {
+      case (#Ok(blockIndex)) {
+        return #ok(blockIndex);
+      };
+      case (#Err(_transferError)) {
+        throw Error.reject("Burn error");
+      };
+    };
+  };
+
+  // Generates the time that an action has been completed
+  // Can be called by any functions that need a timestamp
+  func generateTime() : async Timestamp {
+    let currentTime : Timestamp = Nat64.fromNat(Int.abs(Time.now()));
+    currentTime;
+  };
+
+  // Changes the amount that is minted etc.
+  // Can be called by the user
+  public shared func setAmount(amount : Int) : async Tokens {
+    transferAmount := Int.abs(amount);
+    transferAmount;
+  };
 
   // Allows manual minting of the amount specified to the user's balance
   // Can be called by the user
   public shared func mint() : async Result<Nat, Text> {
     let memoText = "Test transfer";
     let memoBlob = Text.encodeUtf8(memoText);
+    let ranAtTime = await generateTime();
 
     let transferArgs = {
       from_subaccount = null;
@@ -89,10 +178,10 @@ actor {
         owner = to_principal;
         subaccount = null;
       };
-      amount = 50000;
-      fee = ?0;
+      amount = transferAmount;
+      fee = ?transferFee;
       memo = ?memoBlob;
-      created_at_time = null;
+      created_at_time = ?ranAtTime;
     };
 
     let transferResult = await ledger_canister.icrc1_transfer(transferArgs);
@@ -110,21 +199,27 @@ actor {
   // Allows the function to display balance of the user in the icrc1_ledger canister to be run in freeos_swap
   // Outputs the balance of the user and a message of whether the auto-minting process is running
   // Can be called by the user
-  public shared func getBalance() : async (Nat, Text) {
+  public shared func getBalance() : async (Nat, Text, Text) {
     let account = {
       owner = to_principal;
       subaccount = null;
     };
 
-    var message : Text = "";
+    var mintMessage : Text = "";
+    var burnMessage : Text = "";
 
     let balance = await ledger_canister.icrc1_balance_of(account);
     if (mintStop) {
-      message := "Auto-minting is stopped.";
+      mintMessage := "Auto-minting is stopped.";
     } else {
-      message := "Auto-minting is running.";
+      mintMessage := "Auto-minting is running.";
     };
-    return (balance, message);
+    if (burnStop) {
+      burnMessage := "Auto-burning is stopped.";
+    } else {
+      burnMessage := "Auto-burning is running.";
+    };
+    return (balance, mintMessage, burnMessage);
   };
 
   // Enables auto-minting related functions to start the process
@@ -137,7 +232,10 @@ actor {
   // Automatically runs and has an effect if mintStop == false
   system func heartbeat() : async () {
     if (mintTimer == 0 and not mintStop) {
-      mintTimer := Timer.setTimer(#seconds 30, heartbeatCallback);
+      mintTimer := Timer.setTimer(#seconds 10, heartbeatCallback);
+    };
+    if (burnTimer == 0 and not burnStop) {
+      burnTimer := Timer.setTimer(#seconds 30, burnHeartbeatCallback);
     };
   };
 
@@ -159,7 +257,7 @@ actor {
     };
     // Set the next timer only if minting is still active
     if (mintTimer != 0) {
-      mintTimer := Timer.setTimer(#seconds 30, heartbeatCallback);
+      mintTimer := Timer.setTimer(#seconds 10, heartbeatCallback);
     };
   };
 
@@ -171,6 +269,53 @@ actor {
       mintTimer := 0;
       mintStop := true;
     };
+  };
+
+    // Enables auto-minting related functions to start the process
+  // Can be called by the user
+  public func startBurning() : async () {
+    burnStop:= false;
+  };
+  
+  // Resets the timer and runs mint()
+  // Called by heartbeat() every 30 seconds
+  func burnHeartbeatCallback() : async () {
+    if (burnStop) {
+      return;  
+    };
+    if (not isBurning) {
+      isBurning := true;
+      try {
+        ignore burn();
+      } catch (e) {
+        // Handle any errors that occur during minting
+        Debug.print("Burning error: " # Error.message(e));
+      };
+      isBurning := false;
+    };
+    // Set the next timer only if minting is still active
+    if (burnTimer != 0) {
+      burnTimer := Timer.setTimer(#seconds 30, burnHeartbeatCallback);
+    };
+  };
+
+  // Stops the auto-minting process
+  // Can be called by the user
+  public func stopBurning() : async () {
+    if (burnTimer != 0) {
+      Timer.cancelTimer(burnTimer);
+      burnTimer := 0;
+      burnStop := true;
+    };
+  };
+
+  // JESPER - Test of a handbrake function to stop all auto processes dead in their tracks
+  // Can be called by the user
+  public shared func handbrake() : async () {
+    burnStop := true;
+    mintStop := true;
+    isMinting := false;
+    isBurning := false;
   };
 
 };
