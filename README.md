@@ -44,12 +44,16 @@ Edit the 'set_env.sh' file to set 'MINTER' equal to the 'freeos_swap' canister i
 
 The line we need to change should look like this:
 `export MINTER=bkyz2-fmaaa-aaaaa-qaaaq-cai` 
-(With the principal id of your instance of the 'freeos_swap' canister)
+(With the Principal id of your instance of the 'freeos_swap' canister)
+
+We also need to the change the line that defines the hardCodedToPrincipal to default the toPrincipal address to the Principal you will be using to access it (to make things easier make this the same one you deploy canisters as)
+`let hardCodedToPrincipal = Principal.fromText("tog4r-6yoqs-piw5o-askmx-dwu6g-vncjf-y7gml-qnkb2-yhuao-2cq3c-2ae");`
+(With the Principal id of the account that will be holding the balance)
 
 Then run this shell file using this (Linux/Mac) command:
 `source ./set_env.sh`
 
-This will set up the variables needed for the next step.
+This will set up the variables needed for the next step, and will also deploy the freeos_manager canister.
 
 
 

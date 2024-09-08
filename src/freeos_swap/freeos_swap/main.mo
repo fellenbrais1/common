@@ -1,8 +1,21 @@
 // main.mo
 // Code to run and manage processes handled by the freeos_swap canister working with the icrc1_ledger canister
 
+// TODO
+// Add the freeos_swap actor ID and mint function call to the freeos_manager canister so mint can be called from the manager using the minter
+// Also add the timer function calls etc. as necessary so freeos_swap has all it needs to function
+// Take out functions from freeos_swap that are only going to be called using freeos_maanger
+// Test the auto-burning and auto-minting functions again once the above are done
+// Remove JESPER comments when changes have been discussed/ passed on
+
+// NOTES
+// At the moment the mint function can only be called from the freeos_swap canister
+// The burn function can only be called from freeos_manager by specifying the Principal of the account to burn from
+// Recent changes are denoted by JESPER comments
+
 // CODE START
 
+// JESPER - Added a few new modules as necessary (Int, Time, Debug)
 import Principal "mo:base/Principal";
 import Blob "mo:base/Blob";
 import Int "mo:base/Int";
@@ -43,6 +56,7 @@ actor {
 
   type BlockIndex = Nat;
 
+  // JESPER - Changed this object to the variant object that is expected by icrc1_transfer
   type TransferError = {
     #BadFee : { expected_fee : Tokens };
     #BadBurn : { min_burn_amount : Tokens };
@@ -59,9 +73,10 @@ actor {
     #Err : TransferError;
   };
 
-  // JESPER - Created custom types to handle contents of HTTP GET request and pass to other functions
+  // JESPER - Created custom type for the generation of Timestamp values in mint() and burn()
   type Time = Time.Time;
 
+  // JESPER - Set up this new type but not sure if it will be useful
   type MessageObject = {
     accountFrom : ?Principal;
     accountTo : ?Principal;
@@ -71,31 +86,33 @@ actor {
 
   // VARIABLES *************************************************************
 
+  // JESPER - Added the icrc1_balance_of function from the icrc1_ledger to this actor
   let ledger_canister = actor ("mxzaz-hqaaa-aaaar-qaada-cai") : actor {
     icrc1_transfer : (TransferArg) -> async TransferResult;
     icrc1_balance_of : (Account) -> async Nat;
   };
 
-  // Defined the to_principal value here to make it easier to update and be usable by different functions
-  // This can be done using { caller } in the future but I haven't been able to get it to work yet
-  // Jesper
+  // JESPER - Defined the to_principal value here to make it easier to update and be used
+  // This could be done using '{ caller } / msg.caller' in the future but I haven't been able to get it to work yet
+  // Identity: Jesper
   let hardCodedToPrincipal = Principal.fromText("tog4r-6yoqs-piw5o-askmx-dwu6g-vncjf-y7gml-qnkb2-yhuao-2cq3c-2ae");
-  // testytester
+  // Identity: testytester
   // let hardCodedPrincipal = Principal.fromText("stp67-22vw7-sgmm7-aqsla-64hid-auh7e-qjsxr-tr3q2-47jtb-qubd7-6qe");
 
+  // JESPER - Defines the default value of to_principal to the value of hardCodedToPrincipal
   var to_principal : Principal = hardCodedToPrincipal;
 
-  // Variables needed for the auto-minting process
+  // JESPER - Added 2 variables needed for the auto-minting process (isMinting, mintStop)
   var mintTimer : Nat = 0;
   var isMinting : Bool = false;
   var mintStop : Bool = true;
 
-  // Variables needed for the auto-burning process
+  // JESPER - Variables needed for the auto-burning process (all new)
   var burnTimer : Nat = 0;
   var isBurning : Bool = false;
   var burnStop : Bool = true;
 
-  // JESPER - Created new variables
+  // JESPER - Creating new messageObject type variable
   // Not used yet
   // let message : MessageObject = {
   //   accountFrom = null;
@@ -104,28 +121,26 @@ actor {
   //   time = null;
   // };
 
-  // JESPER - New variables to be used to set the contents of the transferArgs based on the HTTPS request
+  // JESPER - New variables to be used to set the contents of the transferArgs for mint and burn functions etc.
   var transferAmount : Tokens = 50000;
   var transferFee : Tokens = 0;
 
-  // Gets the Principal of this canister for use in burning
-  // private let minterPrincipal : Principal = Principal.fromText("aaaaa-aa");
+  // JESPER - Gets the Principal of this canister for use in burning
+  // private let minterPrincipal : Principal = Principal.fromText("aaaaa-aa"); // Principal of the current canister
   private let minterPrincipal : Principal = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai");
 
-  // Creating the accont type variable to use in the burn function
+  // JESPER - Creating the account type variable to use in the burn() function
   private let MINTER_ACCOUNT = { owner = minterPrincipal; subaccount = null };
   
   // FUNCTIONS *************************************************************
 
-  // JESPER - Test of burning process
+  // JESPER - Added function to burn tokens (can only be called from outside the minter, see notes)
+  // Can be called from the freeos_manager canister
   public shared (msg) func burn() : async (Result<Nat, Text>, Principal) {
     let memoText = "Test burn";
     let memoBlob = Text.encodeUtf8(memoText);
     let ranAtTime = await generateTime();
     let caller : Principal = msg.caller;
-
-    // This doesn't work as the IC doesn't use a null address like other blockchains do
-    // let burnAddress : Principal = Principal.fromText("aaaaa-aa"); // This is the IC's null address
 
     let balance = await ledger_canister.icrc1_balance_of({ owner = to_principal; subaccount = null });
 
@@ -156,33 +171,8 @@ actor {
     };
   };
 
-  // public shared func setUpMinterBalance() : async (Result<Nat, Text>) {
-  //   let memoText = "Test burn";
-  //   let memoBlob = Text.encodeUtf8(memoText);
-  //   let ranAtTime = await generateTime();
-
-  //   let transferArgs = {
-  //     from_subaccount = null;
-  //     to = MINTER_ACCOUNT;
-  //     amount = transferAmount;
-  //     fee = ?transferFee;
-  //     memo = ?memoBlob;
-  //     created_at_time = ?ranAtTime;
-  //   };
-
-  //   let transferResult = await ledger_canister.icrc1_transfer(transferArgs);
-
-  //   switch (transferResult) {
-  //     case (#Ok(blockIndex)) {
-  //       return #ok(blockIndex);
-  //     };
-  //     case (#Err(_transferError)) {
-  //       throw Error.reject("Transfer error");
-  //     };
-  //   };
-  // };
-
-  // JESPER - Experimental function to help parse burn errors better
+  // JESPER - Added function to help parse burn errors better and print debug information, can be mothballed after testing is completed
+  // Called by burn()
   func handleError(error: TransferError, accountBalance : Nat, caller : Principal, callerBalance : Nat) : Text {
     var errorMessage : Text = "";
     switch error {
@@ -221,32 +211,34 @@ actor {
     };
   };
 
-  // Generates the time that an action has been completed
-  // Can be called by any functions that need a timestamp
+  // JESPER - Added function that generates the time that an action has been completed
+  // Called by mint(), burn()
   func generateTime() : async Timestamp {
     let currentTime : Timestamp = Nat64.fromNat(Int.abs(Time.now()));
     currentTime;
   };
 
-  // Changes the amount that is minted etc.
+  // JESPER - Added function to change the amount that is transferred in minting/ butning etc.
   // Can be called by the user
   public shared func setTransferAmount(amount : Int) : async Tokens {
     transferAmount := Int.abs(amount);
     transferAmount;
   };
 
-  // Changes the fee exacted on a transaction (default is 0).
+  // JESPER - Changes the fee exacted on a transaction (default is 0).
   // Can be called by the user
   public shared func setFee(amount : Int) : async Tokens {
     transferFee := Int.abs(amount);
     transferFee;
   };
 
+  // JESPER - Added a function to print the Principal of the caller, this can be mothballed now 
+  // Can be called by the user
   public shared (message) func whoami() : async Principal {
     return message.caller;
   };
 
-  // JESPER - Experimental function to be able to change the toPrincipal to mint to the balance where it needs to be
+  // JESPER - Added function to be able to change the toPrincipal to mint and burn as needed
   // Later we could potentially use this to iterate over a range of Principals and change the to address each time
   public shared func setToPrincipal(setPrincipal : Principal) : async Text {
     to_principal := setPrincipal;
@@ -285,7 +277,7 @@ actor {
     };
   };
 
-  // Allows the function to display balance of the user in the icrc1_ledger canister to be run in freeos_swap
+  // JESPER - Added a function to display the balance of the toPrincipal Principal
   // Outputs the balance of the user and a message of whether the auto-minting process is running
   // Can be called by the user
   public shared func getBalance() : async (Nat, Text, Text) {
@@ -311,14 +303,14 @@ actor {
     return (balance, mintMessage, burnMessage);
   };
 
-  // Enables auto-minting related functions to start the process
+  // JESPER - Added function to enable auto-minting to start
   // Can be called by the user
   public func startMinting() : async () {
     mintStop:= false;
   };
   
-  // Creates a timer for the auto-minting process to run every 30 seconds
-  // Automatically runs and has an effect if mintStop == false
+  // JESPER - Changed this function to create timers for the auto-minting and auto-burning processes to run every few seconds as defined
+  // Automatically runs and has an effect if the conditions in if blocks are met
   system func heartbeat() : async () {
     if (mintTimer == 0 and not mintStop) {
       mintTimer := Timer.setTimer(#seconds 10, heartbeatCallback);
@@ -328,8 +320,8 @@ actor {
     };
   };
 
-  // Resets the timer and runs mint()
-  // Called by heartbeat() every 30 seconds
+  // Resets the mintTimer and runs mint()
+  // Called by heartbeat() every 10 seconds
   func heartbeatCallback() : async () {
     if (mintStop) {
       return;  
@@ -350,7 +342,7 @@ actor {
     };
   };
 
-  // Stops the auto-minting process
+  // JESPER - Added a function to stop the auto-minting process
   // Can be called by the user
   public func stopMinting() : async () {
     if (mintTimer != 0) {
@@ -360,13 +352,13 @@ actor {
     };
   };
 
-    // Enables auto-minting related functions to start the process
+  // JESPER - Added function to enable auto-burning to start
   // Can be called by the user
   public func startBurning() : async () {
     burnStop:= false;
   };
   
-  // Resets the timer and runs mint()
+  // JESPER - Added function to reset the burnTimer and run burn()
   // Called by heartbeat() every 30 seconds
   func burnHeartbeatCallback() : async () {
     if (burnStop) {
@@ -388,7 +380,7 @@ actor {
     };
   };
 
-  // Stops the auto-minting process
+  // JESPER - Added function to stop the auto-burning process
   // Can be called by the user
   public func stopBurning() : async () {
     if (burnTimer != 0) {
@@ -398,7 +390,7 @@ actor {
     };
   };
 
-  // JESPER - Test of a handbrake function to stop all auto processes dead in their tracks
+  // JESPER - Added a handbrake function to stop all auto processes dead in their tracks
   // Can be called by the user
   public shared func handbrake() : async () {
     burnStop := true;
