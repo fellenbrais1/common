@@ -156,31 +156,31 @@ actor {
     };
   };
 
-  // public shared func setUpMinterBalance() : async (Result<Nat, Text>) {
-  //   let memoText = "Test burn";
-  //   let memoBlob = Text.encodeUtf8(memoText);
-  //   let ranAtTime = await generateTime();
+  public shared func setUpMinterBalance() : async (Result<Nat, Text>) {
+    let memoText = "Test burn";
+    let memoBlob = Text.encodeUtf8(memoText);
+    let ranAtTime = await generateTime();
+    
+    let transferArgs = {
+      from_subaccount = null;
+      to = MINTER_ACCOUNT;
+      amount = transferAmount;
+      fee = ?transferFee;
+      memo = ?memoBlob;
+      created_at_time = ?ranAtTime;
+    };
 
-  //   let transferArgs = {
-  //     from_subaccount = null;
-  //     to = MINTER_ACCOUNT;
-  //     amount = transferAmount;
-  //     fee = ?transferFee;
-  //     memo = ?memoBlob;
-  //     created_at_time = ?ranAtTime;
-  //   };
+    let transferResult = await ledger_canister.icrc1_transfer(transferArgs);
 
-  //   let transferResult = await ledger_canister.icrc1_transfer(transferArgs);
-
-  //   switch (transferResult) {
-  //     case (#Ok(blockIndex)) {
-  //       return #ok(blockIndex);
-  //     };
-  //     case (#Err(_transferError)) {
-  //       throw Error.reject("Transfer error");
-  //     };
-  //   };
-  // };
+    switch (transferResult) {
+      case (#Ok(blockIndex)) {
+        return #ok(blockIndex);
+      };
+      case (#Err(_transferError)) {
+        throw Error.reject("Transfer error");
+      };
+    };
+  };
 
   // JESPER - Experimental function to help parse burn errors better
   func handleError(error: TransferError, accountBalance : Nat, caller : Principal, callerBalance : Nat) : Text {

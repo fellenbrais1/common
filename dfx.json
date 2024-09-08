@@ -4,6 +4,10 @@
       "main": "src/freeos_swap/freeos_swap/main.mo",
       "type": "motoko"
     },
+    "freeos_manager": {
+      "main": "src/freeos_manager/main.mo",
+      "type": "motoko"
+    },
     "icrc1_ledger": {
       "type": "custom",
       "candid": "src/lift/icrc1_ledger.did",
