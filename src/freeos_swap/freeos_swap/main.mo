@@ -23,7 +23,6 @@ import Error "mo:base/Error";
 import Time "mo:base/Time";
 import Timer "mo:base/Timer";
 import Debug "mo:base/Debug";
-import Prelude "mo:base/Prelude";
 import Result "mo:base/Result";
 
 // JSON - These don't work
@@ -89,13 +88,13 @@ actor {
 
   // VARIABLES *************************************************************
 
-  // Adding functions from the icrc1_ledger to this actor
+  // Adds functions from the icrc1_ledger to this actor
   let ledger_canister = actor ("mxzaz-hqaaa-aaaar-qaada-cai") : actor {
     icrc1_transfer : (TransferArg) -> async TransferResult;
     icrc1_balance_of : (Account) -> async Nat;
   };
 
-  // Defined the to_principal value here to make it easier to update and be used
+  // Defines the to_principal value here to make it easier to update and be used
   // This could be done using '{ caller } / msg.caller' in the future but I haven't been able to get it to work yet
   // Identity: Jesper
   let hardCodedToPrincipal = Principal.fromText("tog4r-6yoqs-piw5o-askmx-dwu6g-vncjf-y7gml-qnkb2-yhuao-2cq3c-2ae");
@@ -126,11 +125,11 @@ actor {
   // Creating the account type variable to use in the burn() function
   private let MINTER_ACCOUNT = { owner = minterPrincipal; subaccount = null };
   
-  // JSON - This approach does not work
+  // JSON - This approach does not work, you cannot assign the contents of a file directly to a variable like this
   // let testData = "./data.json";
 
-  // JSON - Tried to just make an array of jsonRecord values to mimic a JSON response, looks good but custom types are not iterable so that needs to be worked out
-  let bruteForce : [jsonRecord] = [
+  // JSON - Tried to just make an array of jsonRecord values to mimic a JSON response, looks promising if json values can be extracted into this format
+  let jsonArray : [jsonRecord] = [
     {
       ProtonAccount = "tommccann";
       ICPrincipal = Principal.fromText("gpurw-f4h72-qwdnm-vmexj-xnhww-us2kt-kbiua-o3y4u-bzduw-qhb7a-jqe");
@@ -147,14 +146,15 @@ actor {
 
   // FUNCTIONS *************************************************************
 
-  // JSON - Function to extract the values from some JSON data, in this case an array of jsonRecords
+  // JSON - Experimental function to extract the values from some JSON data, in this case an array of jsonRecords
+  // Can be called by the user
   public shared func fetchData() : async Result<[Text], Text> {
-    if (bruteForce != []) {
+    if (jsonArray != []) {
       var ProtonAccounts : Text = "";
       var ICPrincipals : Text = "";
       var Amounts : Text = "";
       var DateTimes : Text = "";
-      for (jsonRecord in bruteForce.vals()) {
+      for (jsonRecord in jsonArray.vals()) {
         ProtonAccounts := ProtonAccounts # " " # jsonRecord.ProtonAccount;
         ICPrincipals := ICPrincipals # " " # Principal.toText(jsonRecord.ICPrincipal);
         Amounts := Amounts # " " # Nat.toText(jsonRecord.Amount);
@@ -166,6 +166,8 @@ actor {
     };
   };
 
+  // JSON - A Google Gemini suggestion that does not work due to language differences in Motoko
+  // Can be called by the user
   // public shared func displayData() : async Text {
   //   let data : ?[Text] = await fetchData("./data.json");
   //   if (data.isSome()) {
@@ -181,7 +183,7 @@ actor {
   //   };
   // };
 
-  // JESPER - Added function to burn tokens (can only be called from outside the minter, see notes)
+  // Burns tokens from a Principal (can only be called from outside the minter, see notes)
   // Can be called from the freeos_manager canister
   public shared (msg) func burn() : async (Result<Nat, Text>, Principal) {
     let memoText = "Test burn";
@@ -218,7 +220,7 @@ actor {
     };
   };
 
-  // JESPER - Added function to help parse burn errors better and print debug information, can be mothballed after testing is completed
+  // Parses burn errors better and prints debug information, can be mothballed after testing is completed
   // Called by burn()
   func handleError(error: TransferError, accountBalance : Nat, caller : Principal, callerBalance : Nat) : Text {
     var errorMessage : Text = "";
@@ -258,35 +260,36 @@ actor {
     };
   };
 
-  // JESPER - Added function that generates the time that an action has been completed
+  // Generates the time that an action has been carried out or completed
   // Called by mint(), burn()
   func generateTime() : async Timestamp {
     let currentTime : Timestamp = Nat64.fromNat(Int.abs(Time.now()));
     currentTime;
   };
 
-  // JESPER - Added function to change the amount that is transferred in minting/ butning etc.
+  // Changes the amount that is transferred in minting/ burning etc.
   // Can be called by the user
   public shared func setTransferAmount(amount : Int) : async Tokens {
     transferAmount := Int.abs(amount);
     transferAmount;
   };
 
-  // JESPER - Changes the fee exacted on a transaction (default is 0).
+  // Changes the fee exacted on a transaction (default is 0).
   // Can be called by the user
   public shared func setFee(amount : Int) : async Tokens {
     transferFee := Int.abs(amount);
     transferFee;
   };
 
-  // JESPER - Added a function to print the Principal of the caller, this can be mothballed now 
+  // Prints the Principal of the caller, this can be mothballed now 
   // Can be called by the user
   public shared (message) func whoami() : async Principal {
     return message.caller;
   };
 
-  // JESPER - Added function to be able to change the toPrincipal to mint and burn as needed
+  // Changes the toPrincipal to mint to /burn from as needed
   // Later we could potentially use this to iterate over a range of Principals and change the to address each time
+  // Can be called by the user
   public shared func setToPrincipal(setPrincipal : Principal) : async Text {
     to_principal := setPrincipal;
     let message : Text = ("To Principal set to " # Principal.toText(to_principal));
@@ -324,7 +327,7 @@ actor {
     };
   };
 
-  // JESPER - Added a function to display the balance of the toPrincipal Principal
+  // Displays the balance of the toPrincipal Principal
   // Outputs the balance of the user and a message of whether the auto-minting process is running
   // Can be called by the user
   public shared func getBalance() : async (Nat, Text, Text) {
@@ -350,13 +353,13 @@ actor {
     return (balance, mintMessage, burnMessage);
   };
 
-  // JESPER - Added function to enable auto-minting to start
+  // Enables auto-minting to start
   // Can be called by the user
   public func startMinting() : async () {
     mintStop:= false;
   };
   
-  // JESPER - Changed this function to create timers for the auto-minting and auto-burning processes to run every few seconds as defined
+  // Creates timers for the auto-minting and auto-burning processes to run every few seconds as defined
   // Automatically runs and has an effect if the conditions in if blocks are met
   system func heartbeat() : async () {
     if (mintTimer == 0 and not mintStop) {
@@ -389,7 +392,7 @@ actor {
     };
   };
 
-  // JESPER - Added a function to stop the auto-minting process
+  // Stops the auto-minting process
   // Can be called by the user
   public func stopMinting() : async () {
     if (mintTimer != 0) {
@@ -399,13 +402,13 @@ actor {
     };
   };
 
-  // JESPER - Added function to enable auto-burning to start
+  // Enables auto-burning to start
   // Can be called by the user
   public func startBurning() : async () {
     burnStop:= false;
   };
   
-  // JESPER - Added function to reset the burnTimer and run burn()
+  // Resets the burnTimer and runs burn()
   // Called by heartbeat() every 30 seconds
   func burnHeartbeatCallback() : async () {
     if (burnStop) {
@@ -427,7 +430,7 @@ actor {
     };
   };
 
-  // JESPER - Added function to stop the auto-burning process
+  // Stops the auto-burning process
   // Can be called by the user
   public func stopBurning() : async () {
     if (burnTimer != 0) {
@@ -437,7 +440,7 @@ actor {
     };
   };
 
-  // JESPER - Added a handbrake function to stop all auto processes dead in their tracks
+  // A handbrake function to stop all auto processes dead in their tracks
   // Can be called by the user
   public shared func handbrake() : async () {
     burnStop := true;
