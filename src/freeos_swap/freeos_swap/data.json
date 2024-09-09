@@ -1,0 +1,16 @@
+{
+  "records": [
+      {
+          "ProtonAccount": "tommccann",
+          "ICPrincipal": "gpurw-f4h72-qwdnm-vmexj-xnhww-us2kt-kbiua-o3y4u-bzduw-qhb7a-jqe",
+          "Amount": 100,
+          "DateTime": 1725805695
+      },
+      {
+          "ProtonAccount": "judetan",
+          "ICPrincipal": "22gak-zasla-2cj5r-ix2ds-4kaxw-lrgtq-4zjul-mblvf-gkhsi-fzu3j-cae",
+          "Amount": 40,
+          "DateTime": 1725805791
+      }
+  ]
+}

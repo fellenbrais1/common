@@ -6,16 +6,13 @@
 // Also add the timer function calls etc. as necessary so freeos_swap has all it needs to function
 // Take out functions from freeos_swap that are only going to be called using freeos_maanger
 // Test the auto-burning and auto-minting functions again once the above are done
-// Remove JESPER comments when changes have been discussed/ passed on
 
 // NOTES
 // At the moment the mint function can only be called from the freeos_swap canister
 // The burn function can only be called from freeos_manager by specifying the Principal of the account to burn from
-// Recent changes are denoted by JESPER comments
 
 // CODE START
 
-// JESPER - Added a few new modules as necessary (Int, Time, Debug)
 import Principal "mo:base/Principal";
 import Blob "mo:base/Blob";
 import Int "mo:base/Int";
@@ -26,6 +23,13 @@ import Error "mo:base/Error";
 import Time "mo:base/Time";
 import Timer "mo:base/Timer";
 import Debug "mo:base/Debug";
+import Prelude "mo:base/Prelude";
+import Result "mo:base/Result";
+
+// JSON - These don't work
+// import HTTP "mo:http/Client";
+// import JSON "mo:json";
+
 
 actor {
 
@@ -56,7 +60,6 @@ actor {
 
   type BlockIndex = Nat;
 
-  // JESPER - Changed this object to the variant object that is expected by icrc1_transfer
   type TransferError = {
     #BadFee : { expected_fee : Tokens };
     #BadBurn : { min_burn_amount : Tokens };
@@ -73,66 +76,110 @@ actor {
     #Err : TransferError;
   };
 
-  // JESPER - Created custom type for the generation of Timestamp values in mint() and burn()
+  // Custom type for the generation of Timestamp values
   type Time = Time.Time;
 
-  // JESPER - Set up this new type but not sure if it will be useful
-  type MessageObject = {
-    accountFrom : ?Principal;
-    accountTo : ?Principal;
-    amount: ?Int;
-    time: ?Time;
+  // JSON - New custom type to create JSON records
+  type jsonRecord = {
+    ProtonAccount : Text;
+    ICPrincipal : Principal;
+    Amount : Nat;
+    DateTime : Nat;
   };
 
   // VARIABLES *************************************************************
 
-  // JESPER - Added the icrc1_balance_of function from the icrc1_ledger to this actor
+  // Adding functions from the icrc1_ledger to this actor
   let ledger_canister = actor ("mxzaz-hqaaa-aaaar-qaada-cai") : actor {
     icrc1_transfer : (TransferArg) -> async TransferResult;
     icrc1_balance_of : (Account) -> async Nat;
   };
 
-  // JESPER - Defined the to_principal value here to make it easier to update and be used
+  // Defined the to_principal value here to make it easier to update and be used
   // This could be done using '{ caller } / msg.caller' in the future but I haven't been able to get it to work yet
   // Identity: Jesper
   let hardCodedToPrincipal = Principal.fromText("tog4r-6yoqs-piw5o-askmx-dwu6g-vncjf-y7gml-qnkb2-yhuao-2cq3c-2ae");
   // Identity: testytester
   // let hardCodedPrincipal = Principal.fromText("stp67-22vw7-sgmm7-aqsla-64hid-auh7e-qjsxr-tr3q2-47jtb-qubd7-6qe");
 
-  // JESPER - Defines the default value of to_principal to the value of hardCodedToPrincipal
+  // Defines the default value of to_principal to the value of hardCodedToPrincipal
   var to_principal : Principal = hardCodedToPrincipal;
 
-  // JESPER - Added 2 variables needed for the auto-minting process (isMinting, mintStop)
+  // Variables needed for the auto-minting process
   var mintTimer : Nat = 0;
   var isMinting : Bool = false;
   var mintStop : Bool = true;
 
-  // JESPER - Variables needed for the auto-burning process (all new)
+  // Variables needed for the auto-burning process
   var burnTimer : Nat = 0;
   var isBurning : Bool = false;
   var burnStop : Bool = true;
 
-  // JESPER - Creating new messageObject type variable
-  // Not used yet
-  // let message : MessageObject = {
-  //   accountFrom = null;
-  //   accountTo = null;
-  //   amount = null;
-  //   time = null;
-  // };
-
-  // JESPER - New variables to be used to set the contents of the transferArgs for mint and burn functions etc.
+  // Variables to be used to set the contents of the transferArgs for mint and burn functions etc.
   var transferAmount : Tokens = 50000;
   var transferFee : Tokens = 0;
 
-  // JESPER - Gets the Principal of this canister for use in burning
+  // Get the Principal of this canister for use in burning
   // private let minterPrincipal : Principal = Principal.fromText("aaaaa-aa"); // Principal of the current canister
   private let minterPrincipal : Principal = Principal.fromText("bkyz2-fmaaa-aaaaa-qaaaq-cai");
 
-  // JESPER - Creating the account type variable to use in the burn() function
+  // Creating the account type variable to use in the burn() function
   private let MINTER_ACCOUNT = { owner = minterPrincipal; subaccount = null };
   
+  // JSON - This approach does not work
+  // let testData = "./data.json";
+
+  // JSON - Tried to just make an array of jsonRecord values to mimic a JSON response, looks good but custom types are not iterable so that needs to be worked out
+  let bruteForce : [jsonRecord] = [
+    {
+      ProtonAccount = "tommccann";
+      ICPrincipal = Principal.fromText("gpurw-f4h72-qwdnm-vmexj-xnhww-us2kt-kbiua-o3y4u-bzduw-qhb7a-jqe");
+      Amount = 100;
+      DateTime = 1725805695;
+    },
+    {
+      ProtonAccount = "judetan";
+      ICPrincipal = Principal.fromText("22gak-zasla-2cj5r-ix2ds-4kaxw-lrgtq-4zjul-mblvf-gkhsi-fzu3j-cae");
+      Amount = 40;
+      DateTime = 1725805791;
+    }
+  ];
+
   // FUNCTIONS *************************************************************
+
+  // JSON - Function to extract the values from some JSON data, in this case an array of jsonRecords
+  public shared func fetchData() : async Result<[Text], Text> {
+    if (bruteForce != []) {
+      var ProtonAccounts : Text = "";
+      var ICPrincipals : Text = "";
+      var Amounts : Text = "";
+      var DateTimes : Text = "";
+      for (jsonRecord in bruteForce.vals()) {
+        ProtonAccounts := ProtonAccounts # " " # jsonRecord.ProtonAccount;
+        ICPrincipals := ICPrincipals # " " # Principal.toText(jsonRecord.ICPrincipal);
+        Amounts := Amounts # " " # Nat.toText(jsonRecord.Amount);
+        DateTimes := DateTimes # " " # Nat.toText(jsonRecord.DateTime);
+      };
+      return #ok([ProtonAccounts, ICPrincipals, Amounts, DateTimes]);
+    } else {
+      return #err("Test data not found");
+    };
+  };
+
+  // public shared func displayData() : async Text {
+  //   let data : ?[Text] = await fetchData("./data.json");
+  //   if (data.isSome()) {
+  //     let jsonData = data.unwrap();
+  //     let dataString : Text = ""; 
+  //     for (i in jsonData) {
+  //       dataString += i;
+  //     };
+  //     return dataString;
+  //   } else {
+  //     let message = "Failure to fetch data.";
+  //     message;
+  //   };
+  // };
 
   // JESPER - Added function to burn tokens (can only be called from outside the minter, see notes)
   // Can be called from the freeos_manager canister
