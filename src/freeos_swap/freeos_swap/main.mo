@@ -25,6 +25,9 @@ import Timer "mo:base/Timer";
 import Debug "mo:base/Debug";
 import Result "mo:base/Result";
 
+import {JSON; Candid; CBOR;} "mo:serde"; 
+import UrlEncoded "mo:serde";
+  
 // JSON - These don't work
 // import HTTP "mo:http/Client";
 // import JSON "mo:json";
@@ -79,7 +82,7 @@ actor {
   type Time = Time.Time;
 
   // JSON - New custom type to create JSON records
-  type jsonRecord = {
+  type JsonRecord = {
     ProtonAccount : Text;
     ICPrincipal : Principal;
     Amount : Nat;
@@ -129,7 +132,7 @@ actor {
   // let testData = "./data.json";
 
   // JSON - Tried to just make an array of jsonRecord values to mimic a JSON response, looks promising if json values can be extracted into this format
-  let jsonArray : [jsonRecord] = [
+  let jsonArray : [JsonRecord] = [
     {
       ProtonAccount = "tommccann";
       ICPrincipal = Principal.fromText("gpurw-f4h72-qwdnm-vmexj-xnhww-us2kt-kbiua-o3y4u-bzduw-qhb7a-jqe");
@@ -144,16 +147,18 @@ actor {
     }
   ];
 
+  let jsonRecordKeys = ["ProtonAccount", "ICPrincipal", "Amount", "DateTime"];
+
   // FUNCTIONS *************************************************************
 
   // JSON - Experimental function to extract the values from some JSON data, in this case an array of jsonRecords
   // Can be called by the user
   public shared func fetchData() : async Result<[Text], Text> {
     if (jsonArray != []) {
-      var ProtonAccounts : Text = "";
-      var ICPrincipals : Text = "";
-      var Amounts : Text = "";
-      var DateTimes : Text = "";
+      var ProtonAccounts : Text = "Proton Accounts : ";
+      var ICPrincipals : Text = "IC Principals : ";
+      var Amounts : Text = "Amounts : ";
+      var DateTimes : Text = "DateTimes : ";
       for (jsonRecord in jsonArray.vals()) {
         ProtonAccounts := ProtonAccounts # " " # jsonRecord.ProtonAccount;
         ICPrincipals := ICPrincipals # " " # Principal.toText(jsonRecord.ICPrincipal);
@@ -165,6 +170,68 @@ actor {
       return #err("Test data not found");
     };
   };
+
+  // JSON - Closest attempt yet, still doesn't work
+  public shared func fetchJson() : async Result.Result<Nat, Text> {
+    let jsonText = "[{\"ProtonAccount\": \"tommccann\", \"ICPrincipal\": \"gpurw-f4h72-qwdnm-vmexj-xnhww-us2kt-kbiua-o3y4u-bzduw-qhb7a-jqe\", \"Amount\": 100, \"DateTime\": 1725805695}]";
+    
+    let parseResult = JSON.fromText(jsonText, null);
+    
+    switch (parseResult) {
+      case (#err(error)) {
+        return #err("JSON parsing error: " # error);
+      };
+      case (#ok(jsonBlob)) {
+        let textResult = JSON.toText(jsonBlob, ["Amount"], null);
+        switch (textResult) {
+          case (#err(error)) {
+            return #err("Error extracting Amount: " # error);
+          };
+          case (#ok(amountText)) {
+            let amountOpt = Nat.fromText(amountText);
+            switch (amountOpt) {
+              case (null) { return #err("Failed to convert Amount to Nat"); };
+              case (?nat) { return #ok(nat); };
+            };
+          };
+        };
+      };
+    };
+  };
+
+  // public shared func fetchJson() : async Result<Nat, Text> {
+  //   let jsonText = "[{\"ProtonAccount\": \"tommccann\",
+  //                     \"ICPrincipal\": \"gpurw-f4h72-qwdnm-vmexj-xnhww-us2kt-kbiua-o3y4u-bzduw-qhb7a-jqe\",
+  //                     \"Amount\": 100,
+  //                     \"DateTime\": 1725805695;}]";
+  //   let #ok(blob) = JSON.fromText(jsonText, null);
+  //   let users : ?JsonRecord = from_candid(blob);
+
+  //   switch (users.isSome()) {
+  //     case(null) {
+  //       return #err("No data found");
+  //     };
+  //     case(something) {
+  //       let outputUsers : JsonRecord = users;
+  //       return #ok(outputUsers.Amount);
+  //     };
+  //   };
+  //   //   return #ok(users.Amount);
+  //   // } else {
+  //   //   return #err("No data found");
+  //   // }
+  //   // var ProtonAccounts : Text = "Proton Accounts : ";
+  //   // var ICPrincipals : Text = "IC Principals : ";
+  //   // var Amounts : Text = "Amounts : ";
+  //   // var DateTimes : Text = "DateTimes : ";
+  //   // let finalObject : ?jsonRecord = {
+  //   //   ProtonAccount = users.ProtonAccount;
+  //   //   ICPrincipal = users.ICPrincipal;
+  //   //   Amount = users.Amount;
+  //   //   DateTimes = users.DateTime;
+  //   // };
+  //   // return #ok(users.Amount);
+  // };
 
   // JSON - A Google Gemini suggestion that does not work due to language differences in Motoko
   // Can be called by the user
