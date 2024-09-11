@@ -131,8 +131,15 @@ actor {
   // JSON - This approach does not work, you cannot assign the contents of a file directly to a variable like this
   // let testData = "./data.json";
 
+  var newRecord : JsonRecord = {
+    ProtonAccount = "tommccann";
+    ICPrincipal = Principal.fromText("gpurw-f4h72-qwdnm-vmexj-xnhww-us2kt-kbiua-o3y4u-bzduw-qhb7a-jqe");
+    Amount = 100;
+    DateTime = 1725805695;
+  };
+
   // JSON - Tried to just make an array of jsonRecord values to mimic a JSON response, looks promising if json values can be extracted into this format
-  let jsonArray : [JsonRecord] = [
+  var jsonArray : [JsonRecord] = [
     {
       ProtonAccount = "tommccann";
       ICPrincipal = Principal.fromText("gpurw-f4h72-qwdnm-vmexj-xnhww-us2kt-kbiua-o3y4u-bzduw-qhb7a-jqe");
@@ -154,45 +161,69 @@ actor {
   // JSON - Experimental function to extract the values from some JSON data, in this case an array of jsonRecords
   // Can be called by the user
   public shared func fetchData() : async Result<[Text], Text> {
-    if (jsonArray != []) {
-      var ProtonAccounts : Text = "Proton Accounts : ";
-      var ICPrincipals : Text = "IC Principals : ";
-      var Amounts : Text = "Amounts : ";
-      var DateTimes : Text = "DateTimes : ";
-      for (jsonRecord in jsonArray.vals()) {
-        ProtonAccounts := ProtonAccounts # " " # jsonRecord.ProtonAccount;
-        ICPrincipals := ICPrincipals # " " # Principal.toText(jsonRecord.ICPrincipal);
-        Amounts := Amounts # " " # Nat.toText(jsonRecord.Amount);
-        DateTimes := DateTimes # " " # Nat.toText(jsonRecord.DateTime);
-      };
-      return #ok([ProtonAccounts, ICPrincipals, Amounts, DateTimes]);
-    } else {
-      return #err("Test data not found");
+    var ProtonAccounts : Text = "Proton Accounts : ";
+    var ICPrincipals : Text = "IC Principals : ";
+    var Amounts : Text = "Amounts : ";
+    var DateTimes : Text = "DateTimes : ";
+    for (jsonRecord in jsonArray.vals()) {
+      ProtonAccounts := ProtonAccounts # " " # jsonRecord.ProtonAccount;
+      ICPrincipals := ICPrincipals # " " # Principal.toText(jsonRecord.ICPrincipal);
+      Amounts := Amounts # " " # Nat.toText(jsonRecord.Amount);
+      DateTimes := DateTimes # " " # Nat.toText(jsonRecord.DateTime);
     };
+    return #ok([ProtonAccounts, ICPrincipals, Amounts, DateTimes]);
   };
 
   // JSON - Closest attempt yet, still doesn't work
-  public shared func fetchJson() : async Result.Result<Nat, Text> {
+  public shared func fetchJson() : async Result.Result<Text, Text> {
     let jsonText = "[{\"ProtonAccount\": \"tommccann\", \"ICPrincipal\": \"gpurw-f4h72-qwdnm-vmexj-xnhww-us2kt-kbiua-o3y4u-bzduw-qhb7a-jqe\", \"Amount\": 100, \"DateTime\": 1725805695}]";
+
+    var jsonRecord : JsonRecord = {
+      ProtonAccount = "";
+      ICPrincipal = Principal.fromText("");
+      Amount = 0;
+      DateTime = 0;
+    };
     
     let parseResult = JSON.fromText(jsonText, null);
     
+if (cuntycunyucunt)
+
     switch (parseResult) {
       case (#err(error)) {
         return #err("JSON parsing error: " # error);
       };
       case (#ok(jsonBlob)) {
-        let textResult = JSON.toText(jsonBlob, ["Amount"], null);
-        switch (textResult) {
+        let amountResult = JSON.toText(jsonBlob, ["Amount"], null);
+        switch (amountResult) {
           case (#err(error)) {
             return #err("Error extracting Amount: " # error);
           };
+          case (#ok(amountResult)) {
+            jsonRecord.Amount := Nat.fromText(amountResult);
+            // return #ok(amountOpt);
+          };
+        };
+        let protonAccountResult = JSON.toText(jsonBlob, ["ProtonAccount"], null);
+        switch (protonAccountResult) {
+          case (#err(error)) {
+            return #err("Error extracting Proton Account: " # error);
+          };
+        };
+        let ICPrincipalResult = JSON.toText(jsonBlob, ["ICPrincipal"], null);
+        switch (ICPrincipalResult) {
+          case (#err(error)) {
+            return #err("Error extracting IC Principal: " # error);
+          };
+        };
+        let dateTimeResult = JSON.toText(jsonBlob, ["DateTime"], null);
+        switch (dateTimeResult) {
+          case (#err(error)) {
+            return #err("Error extracting DateTime: " # error);
+          };
           case (#ok(amountText)) {
-            let amountOpt = Nat.fromText(amountText);
-            switch (amountOpt) {
-              case (null) { return #err("Failed to convert Amount to Nat"); };
-              case (?nat) { return #ok(nat); };
-            };
+            let amountOpt = amountText;
+            return #ok(amountOpt);
           };
         };
       };
